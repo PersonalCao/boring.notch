@@ -778,10 +778,24 @@ final class MusicManager: ObservableObject {
     
     func togglePlay() {
         if isPlayerIdle {
-            // No app is playing: sending a system play command would make macOS
-            // launch Apple Music instead of the user's chosen source.
-            openMusicApp()
-            return
+            // Idle also covers "player running but paused for a while"; only
+            // launch the app when it isn't running, otherwise just resume.
+            let bundleID = bundleIdentifier
+                ?? MusicManager.defaultBundleIdentifier(for: Defaults[.mediaController])
+            let isRunning = NSWorkspace.shared.runningApplications.contains {
+                $0.bundleIdentifier == bundleID
+            }
+            if !isRunning {
+                // No app is playing: sending a system play command would make
+                // macOS launch Apple Music instead of the user's chosen source.
+                // Give the app a moment to come up, then start playback.
+                openMusicApp()
+                Task {
+                    try? await Task.sleep(for: .seconds(1.5))
+                    await activeController?.togglePlay()
+                }
+                return
+            }
         }
         Task {
             await activeController?.togglePlay()
